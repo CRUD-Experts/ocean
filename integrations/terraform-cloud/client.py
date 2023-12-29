@@ -1,5 +1,5 @@
 from typing import Any, AsyncGenerator, Optional
-
+from port_ocean.utils import http_async_client
 import httpx
 from loguru import logger
 
@@ -25,7 +25,8 @@ class TerraformClient:
             "Content-Type": "application/vnd.api+json",
         }
         self.api_url = f"{self.terraform_base_url}/api/v2"
-        self.client = httpx.AsyncClient(headers=self.base_headers)
+        self.client = http_async_client
+        self.client.headers.update(self.base_headers)
 
     async def send_api_request(
         self,
