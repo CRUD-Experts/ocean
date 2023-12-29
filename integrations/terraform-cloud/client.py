@@ -148,6 +148,23 @@ class TerraformClient:
             f"Total workspaces retrieved across all organizations: {len(all_workspaces)}"
         )
 
+    async def get_paginated_projects(
+        self,
+    ) -> AsyncGenerator[list[dict[str, Any]], None]:
+        logger.info("Starting to fetch projects across all organizations")
+        async for organizations in self.get_paginated_organizations():
+            for organization in organizations:
+                organization_id = organization["id"]
+                logger.info(f"Fetching projects for organization ID: {organization_id}")
+                endpoint = f"/organizations/{organization_id}/projects"
+                async for projects in self.get_paginated_resources(endpoint):
+                    num_projects = len(projects)
+                    logger.info(
+                        f"Retrieved {num_projects} projects for organization ID: {organization_id}"
+                    )
+
+                    yield projects
+
     async def get_paginated_runs_for_workspace(
         self, workspace_id: str
     ) -> AsyncGenerator[list[dict[str, Any]], None]:
