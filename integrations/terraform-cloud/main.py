@@ -57,17 +57,17 @@ async def enrich_state_versions_with_output_data(
 @ocean.on_resync(ObjectKind.PROJECT)
 async def resync_projects(kind: str) -> ASYNC_GENERATOR_RESYNC_TYPE:
     terraform_client = init_terraform_client()
-    async for project in terraform_client.get_paginated_projects():
-        logger.info(f"Received {len(project)} batch {kind}s")
-        yield project
+    async for projects in terraform_client.get_paginated_projects():
+        logger.info(f"Received {len(projects)} batch {kind}s")
+        yield projects
 
 
 @ocean.on_resync(ObjectKind.WORKSPACE)
 async def resync_workspaces(kind: str) -> ASYNC_GENERATOR_RESYNC_TYPE:
     terraform_client = init_terraform_client()
-    async for workspace in terraform_client.get_paginated_workspaces():
+    async for workspaces in terraform_client.get_paginated_workspaces():
         logger.info(f"Received {len(workspace)} batch {kind}s")
-        yield workspace
+        yield workspaces
 
 
 @ocean.on_resync(ObjectKind.RUN)
