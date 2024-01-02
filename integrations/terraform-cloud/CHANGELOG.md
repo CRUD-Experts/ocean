@@ -17,13 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed bug failing Terraform Workspaces sync (0.1.3)
 - Introduced http_async_client for handling unexpected rate limit errors (0.1.3)
 
-
 # Port_Ocean 0.1.2 (2024-01-01)
 
 ### Improvements
 
 - Bumped ocean version to ^0.4.13 (#1)
-
 
 # Port_Ocean 0.1.2 (2023-12-27)
 
