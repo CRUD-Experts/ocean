@@ -10,7 +10,7 @@ from starlette.requests import Request
 from azure_devops.misc import (
     Kind,
     PULL_REQUEST_SEARCH_CRITERIA,
-    AzureDevopsRepositoryResourceConfig,
+    AzureDevopsProjectResourceConfig,
 )
 
 
@@ -30,7 +30,11 @@ async def setup_webhooks() -> None:
 @ocean.on_resync(Kind.PROJECT)
 async def resync_projects(kind: str) -> ASYNC_GENERATOR_RESYNC_TYPE:
     azure_devops_client = AzureDevopsClient.create_from_ocean_config()
-    async for projects in azure_devops_client.generate_projects():
+
+    selector = cast(AzureDevopsProjectResourceConfig, event.resource_config).selector
+    sync_default_team = selector.default_team
+
+    async for projects in azure_devops_client.generate_projects(sync_default_team):
         logger.info(f"Resyncing {len(projects)} projects")
         yield projects
 
@@ -74,12 +78,7 @@ async def resync_pull_requests(kind: str) -> ASYNC_GENERATOR_RESYNC_TYPE:
 async def resync_repositories(kind: str) -> ASYNC_GENERATOR_RESYNC_TYPE:
     azure_devops_client = AzureDevopsClient.create_from_ocean_config()
 
-    selector = cast(AzureDevopsRepositoryResourceConfig, event.resource_config).selector
-    sync_default_team = selector.default_team
-
-    async for repositories in azure_devops_client.generate_repositories(
-        sync_default_team=sync_default_team
-    ):
+    async for repositories in azure_devops_client.generate_repositories():
         logger.info(f"Resyncing {len(repositories)} repositories")
         yield repositories
 

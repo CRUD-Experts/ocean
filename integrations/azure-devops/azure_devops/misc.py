@@ -33,23 +33,23 @@ PULL_REQUEST_SEARCH_CRITERIA: list[dict[str, Any]] = [
 ]
 
 
-class AzureDevopsRepositoryResourceConfig(ResourceConfig):
+class AzureDevopsProjectResourceConfig(ResourceConfig):
     class AzureDevopsSelector(Selector):
         query: str
         default_team: bool | None = Field(
             default=False,
-            description="If set to true, will ingest default team for each repository to Port. Default value is false",
+            description="If set to true, will ingest default team for each project to Port. Default value is false",
             alias="defaultTeam",
         )
 
-    kind: Literal["repository"]
+    kind: Literal["project"]
     selector: AzureDevopsSelector
 
 
 class GitPortAppConfig(PortAppConfig):
     spec_path: List[str] | str = Field(alias="specPath", default="port.yml")
     branch: str = "main"
-    resources: list[AzureDevopsRepositoryResourceConfig | ResourceConfig] = Field(
+    resources: list[AzureDevopsProjectResourceConfig | ResourceConfig] = Field(
         default_factory=list
     )
 
