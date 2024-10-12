@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -5,19 +7,35 @@ from pydantic import BaseModel, Field
 from port_ocean.clients.port.types import RequestOptions
 
 
+class Rule(BaseModel):
+    property: str
+    operator: str
+    value: str
+
+
+class IngestSearchQuery(BaseModel):
+    combinator: str
+    rules: list[Rule | IngestSearchQuery]
+
+
 class EntityMapping(BaseModel):
-    identifier: str
+    identifier: str | IngestSearchQuery
     title: str | None
     blueprint: str
     team: str | None
     properties: dict[str, str] = Field(default_factory=dict)
-    relations: dict[str, str] = Field(default_factory=dict)
+    relations: dict[str, str | IngestSearchQuery] = Field(default_factory=dict)
+
+    @property
+    def is_using_search_identifier(self) -> bool:
+        return isinstance(self.identifier, dict)
+
+
+class MappingsConfig(BaseModel):
+    mappings: EntityMapping
 
 
 class PortResourceConfig(BaseModel):
-    class MappingsConfig(BaseModel):
-        mappings: EntityMapping
-
     entity: MappingsConfig
     items_to_parse: str | None = Field(alias="itemsToParse")
 

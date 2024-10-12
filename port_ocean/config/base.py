@@ -1,11 +1,11 @@
 import os
 import re
-from pathlib import Path
 from types import GenericAlias
 from typing import Any
 
 import yaml
 from humps import decamelize
+from pathlib import Path
 from pydantic import BaseSettings
 from pydantic.env_settings import EnvSettingsSource, InitSettingsSource
 from pydantic.main import ModelMetaclass, BaseModel
@@ -14,18 +14,21 @@ PROVIDER_WRAPPER_PATTERN = r"{{ from (.*) }}"
 PROVIDER_CONFIG_PATTERN = r"^[a-zA-Z0-9]+ .*$"
 
 
-def read_yaml_config_settings_source(
-    settings: "BaseOceanSettings", base_path: str
-) -> str:
-    yaml_file = getattr(settings.__config__, "yaml_file", "")
+def read_yaml_config_settings_source(settings: "BaseOceanSettings") -> dict[str, Any]:
+    yaml_file = getattr(settings.Config, "yaml_file", "")
 
     assert yaml_file, "Settings.yaml_file not properly configured"
-    path = Path(base_path, yaml_file)
+    path = Path(
+        getattr(
+            settings,
+            "_base_path",
+        ),
+        yaml_file,
+    )
 
     if not path.exists():
-        raise FileNotFoundError(f"Could not open yaml settings file at: {path}")
-
-    return path.read_text("utf-8")
+        return {}
+    return yaml.safe_load(path.read_text("utf-8"))
 
 
 def parse_config_provider(value: str) -> tuple[str, str]:
@@ -120,16 +123,15 @@ def decamelize_config(
 
 
 def load_providers(
-    settings: "BaseOceanSettings", existing_values: dict[str, Any], base_path: str
+    settings: "BaseOceanSettings", existing_values: dict[str, Any]
 ) -> dict[str, Any]:
-    yaml_content = read_yaml_config_settings_source(settings, base_path)
-    data = yaml.safe_load(yaml_content)
+    data = read_yaml_config_settings_source(settings)
     snake_case_config = decamelize_config(settings, data)
     return parse_providers(settings, snake_case_config, existing_values)
 
 
 class BaseOceanSettings(BaseSettings):
-    base_path: str
+    _base_path: str = "./"
 
     def get_sensitive_fields_data(self) -> set[str]:
         return _get_sensitive_information(self)
@@ -152,9 +154,7 @@ class BaseOceanSettings(BaseSettings):
             return (
                 init_settings,
                 env_settings,
-                lambda s: load_providers(
-                    s, env_settings(s), init_settings.init_kwargs["base_path"]
-                ),
+                lambda s: load_providers(s, {**env_settings(s), **init_settings(s)}),
             )
 
 

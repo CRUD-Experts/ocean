@@ -5,17 +5,35 @@ on:
   workflow_dispatch:
 
 jobs:
+  detect-changes:
+    uses: ./.github/workflows/detect-changes-matrix.yml
   lint:
-    name: Lint
+    name: ${{ matrix.folder == '.' && '🌊 Ocean Core' || format('🚢 {0}', matrix.folder) }}
+    needs: detect-changes
     runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 5
+      matrix:
+        folder: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
     steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Install poetry
+        run: pipx install poetry
+
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Checkout Repo
-        uses: actions/checkout@v4
-      - name: Lint
+          cache: 'poetry'
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.folder != '.' && format('integrations/{0}', matrix.folder) || '.' }}
         run: |
-          make install/all
-          make lint/all
+          make install
+
+      - name: Lint
+        working-directory: ${{ matrix.folder != '.' && format('integrations/{0}', matrix.folder) || '.' }}
+        run: |
+          make lint

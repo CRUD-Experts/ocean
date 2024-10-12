@@ -54,7 +54,7 @@ class BaseIntegration(SyncRawMixin, SyncMixin):
         """
         Initializes handlers, establishes integration at the specified port, and starts the event listener.
         """
-        logger.info("Starting integration")
+        logger.info("Starting integration", integration_type=self.context.config.integration.type)
         if self.started:
             raise IntegrationAlreadyStartedException("Integration already started")
 
@@ -65,12 +65,6 @@ class BaseIntegration(SyncRawMixin, SyncMixin):
             raise NotImplementedError("on_resync is not implemented")
 
         await self.initialize_handlers()
-
-        logger.info("Initializing integration at port")
-        await self.context.port_client.initialize_integration(
-            self.context.config.integration.type,
-            self.context.config.event_listener.to_request(),
-        )
 
         self.started = True
 

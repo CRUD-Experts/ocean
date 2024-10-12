@@ -1,5 +1,5 @@
 import re
-from typing import Callable, TYPE_CHECKING
+from typing import Any, Callable, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from loguru import Record
@@ -21,7 +21,7 @@ secret_patterns = {
     "GitHub": r"[g|G][i|I][t|T][h|H][u|U][b|B].*['|\"][0-9a-zA-Z]{35,40}['|\"]",
     "Google Cloud Platform API Key": r"AIza[0-9A-Za-z\\-_]{35}",
     "Google Cloud Platform OAuth": r"[0-9]+-[0-9A-Za-z_]{32}\\.apps\\.googleusercontent\\.com",
-    "Google (GCP) Service-account": r'"type": "service_account"',
+    "Google (GCP) Service-account": f'"type":{" "}"service_account"',
     "Google OAuth Access Token": r"ya29\\.[0-9A-Za-z\\-_]+",
     "Connection String": r"[a-zA-Z]+:\/\/[^/\s]+:[^/\s]+@[^/\s]+\/[^/\s]+",
 }
@@ -35,16 +35,31 @@ class SensitiveLogFilter:
             [re.compile(re.escape(token.strip())) for token in tokens if token.strip()]
         )
 
+    def mask_string(self, string: str, full_hide: bool = False) -> str:
+        masked_string = string
+        for pattern in self.compiled_patterns:
+            replace: Callable[[re.Match[str]], str] | str = (
+                "[REDACTED]"
+                if full_hide
+                else lambda match: match.group()[:6] + "[REDACTED]"
+            )
+            masked_string = pattern.sub(replace, masked_string)
+        return masked_string
+
+    def mask_object(self, obj: Any, full_hide: bool = False) -> Any:
+        if isinstance(obj, str):
+            return self.mask_string(obj, full_hide)
+        if isinstance(obj, list):
+            return [self.mask_object(o, full_hide) for o in obj]
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                obj[k] = self.mask_object(v, full_hide)
+
+        return obj
+
     def create_filter(self, full_hide: bool = False) -> Callable[["Record"], bool]:
         def _filter(record: "Record") -> bool:
-            for pattern in self.compiled_patterns:
-                replace: Callable[[re.Match[str]], str] | str = (
-                    "[REDACTED]"
-                    if full_hide
-                    else lambda match: match.group()[:6] + "[REDACTED]"
-                )
-                record["message"] = pattern.sub(replace, record["message"])
-
+            record["message"] = self.mask_string(record["message"], full_hide)
             return True
 
         return _filter

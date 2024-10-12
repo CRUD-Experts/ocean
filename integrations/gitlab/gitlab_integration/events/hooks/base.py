@@ -28,14 +28,19 @@ class ProjectHandler(HookHandler):
         project_id = (
             body["project_id"] if "project_id" in body else body["project"]["id"]
         )
-        project = self.gitlab_service.get_project(project_id)
+        project = await self.gitlab_service.get_project(project_id)
 
         if project:
             logger.info(
                 f"Handling hook {event} for project {project.path_with_namespace}"
             )
-            await self._on_hook(body, project)
-            logger.info(f"Finished handling {event}")
+            try:
+                await self._on_hook(body, project)
+                logger.info(f"Finished handling {event}")
+            except Exception as e:
+                logger.error(
+                    f"Error handling hook {event} for project {project.path_with_namespace}. Error: {e}"
+                )
         else:
             logger.info(
                 f"Project {body['project']['id']} was filtered for event {event}. Skipping..."

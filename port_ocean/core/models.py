@@ -1,7 +1,14 @@
+from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel
 from pydantic.fields import Field
+
+
+class Runtime(Enum):
+    Saas = "Saas"
+    OnPrem = "OnPrem"
 
 
 class Entity(BaseModel):
@@ -11,6 +18,10 @@ class Entity(BaseModel):
     team: str | None | list[Any] = []
     properties: dict[str, Any] = {}
     relations: dict[str, Any] = {}
+
+    @property
+    def is_using_search_identifier(self) -> bool:
+        return isinstance(self.identifier, dict)
 
 
 class BlueprintRelation(BaseModel):
@@ -34,3 +45,16 @@ class Migration(BaseModel):
     sourceBlueprint: str
     mapping: dict[str, Any]
     status: str
+
+
+@dataclass
+class EntityPortDiff:
+    """Represents the differences between entities for porting.
+
+    This class holds the lists of deleted, modified, and created entities as part
+    of the porting process.
+    """
+
+    deleted: list[Entity] = field(default_factory=list)
+    modified: list[Entity] = field(default_factory=list)
+    created: list[Entity] = field(default_factory=list)

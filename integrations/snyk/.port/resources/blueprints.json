@@ -34,9 +34,12 @@
           "type": "number",
           "title": "Score"
         },
-        "packageName": {
-          "type": "string",
-          "title": "Package Name",
+        "packageNames": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "title": "Package Names",
           "icon": "DefaultProperty"
         },
         "packageVersions": {
@@ -45,14 +48,19 @@
           "type": "array"
         },
         "type": {
-          "type": "string",
+          "icon": "DefaultProperty",
           "title": "Type",
+          "type": "string",
           "enum": [
             "vuln",
             "license",
-            "configuration"
-          ],
-          "icon": "DefaultProperty"
+            "configuration",
+            "config",
+            "custom",
+            "code",
+            "cloud",
+            "package_vulnerability"
+          ]
         },
         "severity": {
           "icon": "Alert",
@@ -77,28 +85,38 @@
           "title": "Issue URL",
           "format": "url"
         },
-        "language": {
-          "type": "string",
-          "title": "Language",
-          "icon": "DefaultProperty"
-        },
         "publicationTime": {
           "type": "string",
           "format": "date-time",
           "title": "Publication Time",
           "icon": "DefaultProperty"
         },
-        "isPatched": {
-          "type": "boolean",
-          "title": "Is Patched",
-          "icon": "DefaultProperty"
+        "status": {
+          "title": "Status",
+          "icon": "",
+          "type": "string",
+          "enum": [
+            "open",
+            "resolved"
+          ],
+          "enumColors": {
+            "open": "red",
+            "resolved": "green"
+          }
         }
       },
       "required": []
     },
     "mirrorProperties": {},
     "calculationProperties": {},
-    "relations": {}
+    "relations": {
+      "project": {
+        "title": "Project",
+        "target": "snykProject",
+        "required": false,
+        "many": false
+      }
+    }
   },
   {
     "identifier": "snykProject",
@@ -111,12 +129,6 @@
           "title": "URL",
           "format": "url",
           "icon": "Snyk"
-        },
-        "owner": {
-          "type": "string",
-          "title": "Owner",
-          "format": "user",
-          "icon": "TwoUsers"
         },
         "businessCriticality": {
           "title": "Business Criticality",
@@ -164,58 +176,6 @@
           },
           "icon": "DefaultProperty"
         },
-        "highOpenVulnerabilities": {
-          "icon": "Vulnerability",
-          "type": "number",
-          "title": "Open High Vulnerabilities"
-        },
-        "mediumOpenVulnerabilities": {
-          "icon": "Vulnerability",
-          "type": "number",
-          "title": "Open Medium Vulnerabilities"
-        },
-        "lowOpenVulnerabilities": {
-          "icon": "Vulnerability",
-          "type": "number",
-          "title": "Open Low Vulnerabilities"
-        },
-        "importedBy": {
-          "icon": "TwoUsers",
-          "type": "string",
-          "title": "Imported By",
-          "format": "user"
-        },
-        "tags": {
-          "type": "array",
-          "title": "Tags",
-          "icon": "DefaultProperty"
-        }
-      },
-      "required": []
-    },
-    "mirrorProperties": {},
-    "calculationProperties": {},
-    "relations": {
-      "snykVulnerabilities": {
-        "title": "Snyk Vulnerabilities",
-        "target": "snykVulnerability",
-        "required": false,
-        "many": true
-      },
-      "snykOrganization": {
-        "title": "Snyk Organization",
-        "target": "snykOrganization",
-        "required": true,
-        "many": false
-      }
-    }
-  },
-  {
-    "identifier": "snykTarget",
-    "title": "Snyk Target",
-    "icon": "Snyk",
-    "schema": {
-      "properties": {
         "criticalOpenVulnerabilities": {
           "icon": "Vulnerability",
           "type": "number",
@@ -236,6 +196,36 @@
           "type": "number",
           "title": "Open Low Vulnerabilities"
         },
+        "tags": {
+          "type": "array",
+          "title": "Tags",
+          "icon": "DefaultProperty"
+        },
+        "targetOrigin": {
+          "type": "string",
+          "title": "Target Origin"
+        }
+      },
+      "required": []
+    },
+    "mirrorProperties": {},
+    "calculationProperties": {},
+    "aggregationProperties": {},
+    "relations": {
+      "snyk_target": {
+        "title": "Snyk Target",
+        "target": "snykTarget",
+        "required": false,
+        "many": false
+      }
+    }
+  },
+  {
+    "identifier": "snykTarget",
+    "title": "Snyk Target",
+    "icon": "Snyk",
+    "schema": {
+      "properties": {
         "origin": {
           "title": "Target Origin",
           "type": "string",
@@ -277,12 +267,55 @@
     },
     "mirrorProperties": {},
     "calculationProperties": {},
-    "relations": {
-      "snykProjects": {
-        "title": "Snyk Projects",
+    "aggregationProperties": {
+      "open_critical_vulnerabilities": {
+        "title": "Open Critical Vulnerabilities",
+        "type": "number",
         "target": "snykProject",
+        "calculationSpec": {
+          "func": "sum",
+          "property": "criticalOpenVulnerabilities",
+          "calculationBy": "property"
+        }
+      },
+      "open_high_vulnerabilities": {
+        "title": "Open High Vulnerabilities",
+        "type": "number",
+        "target": "snykProject",
+        "calculationSpec": {
+          "func": "sum",
+          "property": "highOpenVulnerabilities",
+          "calculationBy": "property"
+        }
+      },
+      "open_medium_vulnerabilities": {
+        "title": "Open Medium Vulnerabilities",
+        "type": "number",
+        "target": "snykProject",
+        "calculationSpec": {
+          "func": "sum",
+          "property": "mediumOpenVulnerabilities",
+          "calculationBy": "property"
+        }
+      },
+      "open_low_vulnerabilities": {
+        "title": "Open Low Vulnerabilities",
+        "icon": "DefaultProperty",
+        "type": "number",
+        "target": "snykProject",
+        "calculationSpec": {
+          "func": "sum",
+          "property": "lowOpenVulnerabilities",
+          "calculationBy": "property"
+        }
+      }
+    },
+    "relations": {
+      "synk_organization": {
+        "title": "Snyk Organization",
+        "target": "snykOrganization",
         "required": false,
-        "many": true
+        "many": false
       }
     }
   }

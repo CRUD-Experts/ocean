@@ -15,7 +15,7 @@ resources:
   - kind: issue
     selector:
       query: "true"
-      jql: "status != Done"
+      jql: "(statusCategory != Done) OR (created >= -1w) OR (updated >= -1w)"
     port:
       entity:
         mappings:
@@ -27,13 +27,14 @@ resources:
             status: .fields.status.name
             issueType: .fields.issuetype.name
             components: .fields.components
-            assignee: .fields.assignee.displayName
-            reporter: .fields.reporter.displayName
-            creator: .fields.creator.displayName
+            assignee: .fields.assignee.emailAddress
+            reporter: .fields.reporter.emailAddress
+            creator: .fields.creator.emailAddress
             priority: .fields.priority.id
             labels: .fields.labels
             created: .fields.created
             updated: .fields.updated
+            resolutionDate: .fields.resolutiondate
           relations:
             project: .fields.project.key
             parentIssue: .fields.parent.key

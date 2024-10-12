@@ -4,6 +4,19 @@ resources:
   - kind: projects
     selector:
       query: 'true'
+      apiFilters:
+        filter:
+          qualifier: TRK
+      metrics:
+        - code_smells
+        - coverage
+        - bugs
+        - vulnerabilities
+        - duplicated_files
+        - security_hotspots
+        - new_violations
+        - new_coverage
+        - new_duplicated_lines_density
     port:
       entity:
         mappings:
@@ -13,7 +26,7 @@ resources:
           properties:
             organization: .organization
             link: .__link
-            lastAnalysisStatus: .__branch.status.qualityGateStatus
+            qualityGateStatus: .__branch.status.qualityGateStatus
             lastAnalysisDate: .__branch.analysisDate
             numberOfBugs: .__measures[]? | select(.metric == "bugs") | .value
             numberOfCodeSmells: .__measures[]? | select(.metric == "code_smells") | .value
@@ -61,6 +74,11 @@ resources:
   - kind: issues
     selector:
       query: 'true'
+      apiFilters:
+        resolved: 'false'
+      projectApiFilters:
+        filter:
+          qualifier: TRK
     port:
       entity:
         mappings:

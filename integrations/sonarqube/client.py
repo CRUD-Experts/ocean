@@ -5,6 +5,12 @@ from typing import Any, Optional, AsyncGenerator, cast
 import httpx
 from loguru import logger
 
+from integration import (
+    SonarQubeIssueResourceConfig,
+    CustomSelector,
+    SonarQubeProjectResourceConfig,
+)
+from port_ocean.context.event import event
 from port_ocean.utils import http_async_client
 
 
@@ -13,8 +19,12 @@ class Endpoints:
     WEBHOOKS = "webhooks"
     MEASURES = "measures/component"
     BRANCHES = "project_branches/list"
-    ISSUES = "issues/search"
+    ONPREM_ISSUES = "issues/list"
+    SAAS_ISSUES = "issues/search"
     ANALYSIS = "activity_feed/list"
+
+
+PAGE_SIZE = 100
 
 
 class SonarQubeClient:
@@ -33,18 +43,7 @@ class SonarQubeClient:
         self.is_onpremise = is_onpremise
         self.http_client = http_async_client
         self.http_client.headers.update(self.api_auth_params["headers"])
-
-        self.metrics = [
-            "code_smells",
-            "coverage",
-            "bugs",
-            "vulnerabilities",
-            "duplicated_files",
-            "security_hotspots",
-            "new_violations",
-            "new_coverage",
-            "new_duplicated_lines_density",
-        ]
+        self.metrics: list[str] = []
 
     @property
     def api_auth_params(self) -> dict[str, Any]:
@@ -74,6 +73,9 @@ class SonarQubeClient:
         query_params: Optional[dict[str, Any]] = None,
         json_data: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
+        logger.debug(
+            f"Sending API request to {method} {endpoint} with query params: {query_params}"
+        )
         try:
             response = await self.http_client.request(
                 method=method,
@@ -97,8 +99,15 @@ class SonarQubeClient:
         query_params: Optional[dict[str, Any]] = None,
         json_data: Optional[dict[str, Any]] = None,
     ) -> list[dict[str, Any]]:
+
+        query_params = query_params or {}
+        query_params["ps"] = PAGE_SIZE
+        all_resources = []  # List to hold all fetched resources
+
         try:
-            all_resources = []  # List to hold all fetched resources
+            logger.debug(
+                f"Sending API request to {method} {endpoint} with query params: {query_params}"
+            )
 
             while True:
                 response = await self.http_client.request(
@@ -109,18 +118,15 @@ class SonarQubeClient:
                 )
                 response.raise_for_status()
                 response_json = response.json()
-
-                all_resources.extend(response_json.get(data_key, []))
+                resource = response_json.get(data_key, [])
+                all_resources.extend(resource)
 
                 # Check for paging information and decide whether to fetch more pages
                 paging_info = response_json.get("paging")
-                if paging_info and paging_info.get("pageIndex", 0) * paging_info.get(
-                    "pageSize", 0
-                ) < paging_info.get("total", 0):
-                    query_params = query_params or {}
-                    query_params["p"] = paging_info["pageIndex"] + 1
-                else:
+                if paging_info is None or len(resource) < PAGE_SIZE:
                     break
+
+                query_params["p"] = paging_info["pageIndex"] + 1
 
             return all_resources
 
@@ -128,27 +134,61 @@ class SonarQubeClient:
             logger.error(
                 f"HTTP error with status code: {e.response.status_code} and response text: {e.response.text}"
             )
+            if (
+                e.response.status_code == 400
+                and query_params.get("ps", 0) > PAGE_SIZE
+                and endpoint in [Endpoints.ONPREM_ISSUES, Endpoints.SAAS_ISSUES]
+            ):
+                logger.error(
+                    "The request exceeded the maximum number of issues that can be returned (10,000) from SonarQube API. Consider using apiFilters in the config mapping to narrow the scope of your search. Returning accumulated issues and skipping further results."
+                )
+                return all_resources
+
+            if e.response.status_code == 404:
+                logger.error(f"Resource not found: {e.response.text}")
+                return all_resources
             raise
         except httpx.HTTPError as e:
             logger.error(f"HTTP occurred while fetching paginated data: {e}")
             raise
 
-    async def get_components(self) -> list[dict[str, Any]]:
+    async def get_components(
+        self, api_query_params: Optional[dict[str, Any]] = None
+    ) -> list[dict[str, Any]]:
         """
         Retrieve all components from SonarQube organization.
 
         :return: A list of components associated with the specified organization.
         """
-        params = {}
+        query_params = {}
         if self.organization_id:
-            params["organization"] = self.organization_id
-        logger.info(f"Fetching all components in organization: {self.organization_id}")
+            query_params["organization"] = self.organization_id
+            logger.info(
+                f"Fetching all components in organization: {self.organization_id}"
+            )
+
+        ## Handle api_query_params based on environment
+        if not self.is_onpremise:
+            logger.warning(
+                f"Received request to fetch SonarQube components with api_query_params {api_query_params}. Skipping because api_query_params is only supported on on-premise environments"
+            )
+        else:
+            if api_query_params:
+                query_params.update(api_query_params)
+            elif event.resource_config:
+                # This might be called from places where event.resource_config is not set
+                # like on_start() when creating webhooks
+
+                selector = cast(CustomSelector, event.resource_config.selector)
+                query_params.update(selector.generate_request_params())
+
         try:
             response = await self.send_paginated_api_request(
                 endpoint=Endpoints.PROJECTS,
                 data_key="components",
-                query_params=params,
+                query_params=query_params,
             )
+
             return response
         except Exception as e:
             logger.error(f"Error occurred while fetching components: {e}")
@@ -219,19 +259,20 @@ class SonarQubeClient:
 
         return project
 
-    async def get_all_projects(self) -> list[dict[str, Any]]:
+    async def get_all_projects(self) -> AsyncGenerator[list[dict[str, Any]], None]:
         """
         Retrieve all projects from SonarQube API.
 
         :return (list[Any]): A list containing projects data for your organization.
         """
         logger.info(f"Fetching all projects in organization: {self.organization_id}")
+        self.metrics = cast(
+            SonarQubeProjectResourceConfig, event.resource_config
+        ).selector.metrics
         components = await self.get_components()
-        all_projects = []
         for component in components:
             project_data = await self.get_single_project(project=component)
-            all_projects.append(project_data)
-        return all_projects
+            yield [project_data]
 
     async def get_all_issues(self) -> AsyncGenerator[list[dict[str, Any]], None]:
         """
@@ -239,14 +280,29 @@ class SonarQubeClient:
 
         :return (list[Any]): A list containing issues data for all projects.
         """
-        components = await self.get_components()
 
+        selector = cast(SonarQubeIssueResourceConfig, event.resource_config).selector
+        api_query_params = selector.generate_request_params()
+
+        project_api_query_params = (
+            selector.project_api_filters.generate_request_params()
+            if selector.project_api_filters
+            else None
+        )
+
+        components = await self.get_components(
+            api_query_params=project_api_query_params
+        )
         for component in components:
-            response = await self.get_issues_by_component(component=component)
+            response = await self.get_issues_by_component(
+                component=component, api_query_params=api_query_params
+            )
             yield response
 
     async def get_issues_by_component(
-        self, component: dict[str, Any]
+        self,
+        component: dict[str, Any],
+        api_query_params: Optional[dict[str, Any]] = None,
     ) -> list[dict[str, Any]]:
         """
         Retrieve issues data across a single component (in this case, project) from SonarQube API.
@@ -257,11 +313,22 @@ class SonarQubeClient:
         """
         component_issues = []
         component_key = component.get("key")
-        logger.info(f"Fetching all issues in component: {component_key}")
+        endpoint_path = ""
+
+        if self.is_onpremise:
+            query_params = {"project": component_key}
+            endpoint_path = Endpoints.ONPREM_ISSUES
+        else:
+            query_params = {"componentKeys": component_key}
+            endpoint_path = Endpoints.SAAS_ISSUES
+
+        if api_query_params:
+            query_params.update(api_query_params)
+
         response = await self.send_paginated_api_request(
-            endpoint=Endpoints.ISSUES,
+            endpoint=endpoint_path,
             data_key="issues",
-            query_params={"componentKeys": component_key},
+            query_params=query_params,
         )
 
         for issue in response:
