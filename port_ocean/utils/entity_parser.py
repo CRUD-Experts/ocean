@@ -6,12 +6,12 @@ import xml.etree.ElementTree as ET
 
 
 @dataclass
-class ElementData:
+class HTMLNode:
     tag: str
     attributes: Dict[str, str]
     text: Optional[str] = None
     tail: Optional[str] = None
-    children: List["ElementData"] = field(default_factory=list)
+    children: List["HTMLNode"] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -23,10 +23,10 @@ class ElementData:
         }
 
 
-def element_to_dict(element: ET.Element) -> ElementData:
+def element_to_dict(element: ET.Element) -> HTMLNode:
     children = [element_to_dict(child) for child in element]
 
-    return ElementData(
+    return HTMLNode(
         tag=element.tag,
         attributes=dict(element.attrib),
         text=element.text.strip() if element.text and element.text.strip() else None,
