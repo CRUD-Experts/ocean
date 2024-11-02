@@ -23,8 +23,8 @@ class HTMLNode:
         }
 
 
-def element_to_dict(element: ET.Element) -> HTMLNode:
-    children = [element_to_dict(child) for child in element]
+def parse_element_to_node(element: ET.Element) -> HTMLNode:
+    children = [parse_element_to_node(child) for child in element]
 
     return HTMLNode(
         tag=element.tag,
@@ -35,6 +35,7 @@ def element_to_dict(element: ET.Element) -> HTMLNode:
     )
 
 
-def html_to_json(html_content: str) -> Dict[str, Any]:
+def parse_html_to_json(html_content: str) -> Dict[str, Any]:
     tree = html.fromstring(html_content)
-    return element_to_dict(tree).to_dict()
+    root_node = parse_element_to_node(tree)
+    return root_node.to_dict()
